@@ -32,7 +32,6 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
 |----------------------------|----------|-------------------------------------------------------------|
 | `$Simulation`              | `$false` | `$true` : liste ce qui serait déplacé sans rien toucher     |
 | `$OverwriteExistingTarget` | `$false` | Écraser un fichier du même nom déjà présent dans la cible   |
-| `$HonorLegacyCopyHistory`  | `$true`  | Transition : ne pas redéposer les fichiers déjà copiés par l'ancienne version (voir plus bas) |
 | `$WinScpSessionLog`        | `%TEMP%\itesoft_sortant_ack_winscp.log` | Journal WinSCP détaillé (`$null` pour désactiver) |
 
 ## Fonctionnement
@@ -50,26 +49,15 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
   n'est plus téléchargé ni réécrit en entier. Si l'envoi échoue en fin de
   traitement, les lignes sont affichées dans la sortie du job.
 
-## Transition depuis l'ancienne version (copie)
-
-L'ancienne version **copiait** : les fichiers déjà traités sont encore présents
-dans les dossiers sources. Pour ne pas les redéposer dans la cible (et risquer un
-retraitement par ITESOFT), `$HonorLegacyCopyHistory = $true` relit une fois le CSV
-et ignore les fichiers déjà en `COPIE_OK` (même système, dossier, nom **et
-taille**).
-
-Une fois ces anciens fichiers sources purgés ou archivés, passer
-`$HonorLegacyCopyHistory = $false` : le CSV n'est alors plus du tout téléchargé.
-
 ## Historique des corrections
 
 Version déplacement :
 - copie remplacée par un déplacement (renommage SFTP, repli get/put/delete) ;
 - CSV en append une fois par sous-dossier au lieu d'un renvoi complet après
   chaque fichier ;
-- plus de déduplication par CSV (inutile : la source disparaît après
-  déplacement), sauf pour la transition ;
-- dossiers vides non journalisés ; code simplifié (~70 lignes de moins).
+- plus de déduplication par CSV : la source disparaît après déplacement, le
+  CSV n'est jamais relu ;
+- dossiers vides non journalisés ; code simplifié (~110 lignes de moins).
 
 Première révision du script d'origine :
 1. Erreurs de syntaxe `:NewGuid()` / `:IsNullOrWhiteSpace(...)`.

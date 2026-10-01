@@ -17,9 +17,9 @@
     source.
 
     Chaque déplacement est ajouté (mode append) au journal CSV
-    itesoft_sortant_ack_copies.csv sur le SFTP. Le CSV n'est relu que si
-    $HonorLegacyCopyHistory = $true (transition depuis l'ancienne version qui
-    copiait les fichiers).
+    itesoft_sortant_ack_copies.csv sur le SFTP. Le CSV n'est jamais relu :
+    la source disparaissant après déplacement, aucun fichier n'est traité
+    deux fois.
 
     Variables Azure Automation attendues :
         SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_PASSWORD (chiffrée)
@@ -57,12 +57,6 @@ $Simulation = $false
 # $false = ne pas l'écraser (source laissée en place, erreur, retenté au prochain passage)
 # $true  = l'écraser
 $OverwriteExistingTarget = $false
-
-# Transition depuis l'ancienne version (copie) : les fichiers sources déjà
-# copiés (statut COPIE_OK, même nom et même taille) ne sont pas redéposés.
-# Une fois ces anciens fichiers sources purgés, passer à $false : le CSV
-# n'est alors plus téléchargé.
-$HonorLegacyCopyHistory = $true
 
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
@@ -254,13 +248,6 @@ function Save-PendingRows
     $script:PendingRows.Clear()
 }
 
-function Get-FileKey
-{
-    param([string]$System, [string]$Folder, [string]$FileName, [string]$Size)
-
-    return ("{0}|{1}|{2}|{3}" -f $System, $Folder, $FileName, $Size).ToLowerInvariant()
-}
-
 # ============================================================
 # INITIALISATION
 # ============================================================
@@ -270,7 +257,6 @@ $WorkDirectory = Join-Path -Path $env:TEMP -ChildPath ("itesoft_sortant_ack_" + 
 $LocalCsv      = Join-Path -Path $WorkDirectory -ChildPath "itesoft_sortant_ack_copies.csv"
 
 $MovedCount   = 0
-$SkippedCount = 0
 $ErrorCount   = 0
 
 $script:PendingRows     = New-Object System.Collections.Generic.List[object]
@@ -391,24 +377,6 @@ try
 
     $script:RemoteCsvExists = $TargetNames.ContainsKey([System.IO.Path]::GetFileName($RemoteCsv).ToLowerInvariant())
 
-    # Fichiers copiés par l'ancienne version (transition).
-    $LegacyCopied = @{}
-
-    if ($HonorLegacyCopyHistory -and $script:RemoteCsvExists)
-    {
-        Receive-RemoteFile -Session $Session -RemotePath $RemoteCsv -LocalPath $LocalCsv
-
-        foreach ($Row in @(Import-Csv -LiteralPath $LocalCsv -Delimiter ";" -Encoding UTF8))
-        {
-            if ($Row.Statut -eq "COPIE_OK")
-            {
-                $LegacyCopied[(Get-FileKey $Row.Systeme $Row.Dossier $Row.NomFichier $Row.TailleOctets)] = $true
-            }
-        }
-
-        Write-Log "Transition : $($LegacyCopied.Count) fichier(s) déjà copié(s) par l'ancienne version ne seront pas redéposés."
-    }
-
     # --------------------------------------------------------
     # Parcours des systèmes
     # --------------------------------------------------------
@@ -482,12 +450,6 @@ try
                 $SourcePath = "$FolderPath/$FileName"
                 $TargetPath = "$RemoteTarget/$FileName"
                 $TargetKey  = $FileName.ToLowerInvariant()
-
-                if ($LegacyCopied.ContainsKey((Get-FileKey $System $FolderName $FileName $File.Length)))
-                {
-                    $SkippedCount++
-                    continue
-                }
 
                 # La cible est à plat : deux fichiers de même nom s'écraseraient.
                 if ($TargetNames.ContainsKey($TargetKey) -and -not $OverwriteExistingTarget)
@@ -606,7 +568,7 @@ finally
         Remove-Item -LiteralPath $WorkDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Log "Bilan : $MovedCount déplacement(s), $SkippedCount fichier(s) déjà copié(s) par l'ancienne version, $ErrorCount erreur(s)."
+    Write-Log "Bilan : $MovedCount déplacement(s), $ErrorCount erreur(s)."
 
     if ($ErrorCount -gt 0)
     {
