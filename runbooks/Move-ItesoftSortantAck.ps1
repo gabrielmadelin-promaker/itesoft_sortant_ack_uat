@@ -82,6 +82,24 @@ function Write-Log
     Write-Output ("{0} [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message)
 }
 
+function Write-Event
+{
+    # Ligne structurée (préfixe + JSON sur une ligne) destinée à Log Analytics :
+    # la sortie du job est envoyée dans AzureDiagnostics (catégorie JobStreams)
+    # et analysée par les requêtes de docs/log-analytics.md.
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("ITESOFT_MOVE", "ITESOFT_ERROR", "ITESOFT_BILAN")]
+        [string]$Type,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Data
+    )
+
+    $Data["Simulation"] = $Simulation
+    Write-Output ("{0} {1}" -f $Type, ([PSCustomObject]$Data | ConvertTo-Json -Compress))
+}
+
 function New-TransferOptions
 {
     param([switch]$Append)
@@ -456,6 +474,7 @@ try
                 {
                     $ErrorCount++
                     Write-Log "Fichier cible déjà existant, source laissée en place : $SourcePath -> $TargetPath" "ERREUR"
+                    Write-Event "ITESOFT_ERROR" @{ Systeme = $System; Dossier = $FolderName; NomFichier = $FileName; Source = $SourcePath; Destination = $TargetPath; Message = "Fichier cible déjà existant" }
                     continue
                 }
 
@@ -482,6 +501,7 @@ try
                 {
                     $ErrorCount++
                     Write-Log "Échec du déplacement de $SourcePath : $($_.Exception.Message)" "ERREUR"
+                    Write-Event "ITESOFT_ERROR" @{ Systeme = $System; Dossier = $FolderName; NomFichier = $FileName; Source = $SourcePath; Destination = $TargetPath; Message = $_.Exception.Message }
                     continue
                 }
 
@@ -489,6 +509,7 @@ try
                 $MovedCount++
 
                 Write-Log "Déplacé ($script:LastMoveMethod) : $SourcePath -> $TargetPath" "OK"
+                Write-Event "ITESOFT_MOVE" @{ Systeme = $System; Dossier = $FolderName; NomFichier = $FileName; Source = $SourcePath; Destination = $TargetPath; TailleOctets = $File.Length; Methode = $script:LastMoveMethod }
 
                 $script:PendingRows.Add([PSCustomObject]@{
                     DateHeure    = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -569,6 +590,7 @@ finally
     }
 
     Write-Log "Bilan : $MovedCount déplacement(s), $ErrorCount erreur(s)."
+    Write-Event "ITESOFT_BILAN" @{ Machine = $env:COMPUTERNAME; Deplacements = $MovedCount; Erreurs = $ErrorCount }
 
     if ($ErrorCount -gt 0)
     {

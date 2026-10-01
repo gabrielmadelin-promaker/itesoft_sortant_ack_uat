@@ -49,6 +49,16 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
   n'est plus téléchargé ni réécrit en entier. Si l'envoi échoue en fin de
   traitement, les lignes sont affichées dans la sortie du job.
 
+## Suivi dans Log Analytics
+
+Chaque déplacement, chaque erreur et le bilan de chaque exécution sont aussi
+écrits sous forme de lignes structurées (`ITESOFT_MOVE`, `ITESOFT_ERROR`,
+`ITESOFT_BILAN` suivies d'un JSON) dans la sortie du job. Mise en place,
+requêtes KQL, partage et alerte : [`docs/log-analytics.md`](docs/log-analytics.md).
+
+Les requêtes filtrent sur le nom de runbook `Move-ItesoftSortantAck` : à adapter
+si le runbook porte un autre nom dans Azure Automation.
+
 ## Historique des corrections
 
 Version déplacement :
