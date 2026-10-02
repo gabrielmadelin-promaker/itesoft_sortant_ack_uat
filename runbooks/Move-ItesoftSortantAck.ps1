@@ -58,6 +58,10 @@ $Simulation = $false
 # $true  = l'écraser
 $OverwriteExistingTarget = $false
 
+# Seuls les fichiers correspondant à ce masque sont déplacés
+# (insensible à la casse : .xml, .XML...). Les autres restent en place.
+$FileMask = "*.xml"
+
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
 $WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_winscp.log"
@@ -443,7 +447,7 @@ try
             {
                 $Files = @(
                     $Session.ListDirectory($FolderPath).Files |
-                    Where-Object { -not $_.IsDirectory } |
+                    Where-Object { -not $_.IsDirectory -and $_.Name -like $FileMask } |
                     Sort-Object Name
                 )
             }
@@ -460,7 +464,7 @@ try
                 continue
             }
 
-            Write-Log "$($Files.Count) fichier(s) dans $System / $FolderName."
+            Write-Log "$($Files.Count) fichier(s) $FileMask dans $System / $FolderName."
 
             foreach ($File in $Files)
             {
