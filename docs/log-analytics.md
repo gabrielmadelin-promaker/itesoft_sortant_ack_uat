@@ -73,6 +73,16 @@ AzureDiagnostics
 | order by TimeGenerated desc
 ```
 
+### Toutes les erreurs (y compris connexion, CSV, lecture de dossier)
+
+```kusto
+AzureDiagnostics
+| where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
+| where ResultDescription has "[ERREUR]"
+| project TimeGenerated, Erreur = ResultDescription, JobId = JobId_g
+| order by TimeGenerated desc
+```
+
 ### Volume par jour et par système
 
 ```kusto
