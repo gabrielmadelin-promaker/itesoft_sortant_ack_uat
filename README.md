@@ -56,8 +56,8 @@ Chaque déplacement, chaque erreur et le bilan de chaque exécution sont aussi
 `ITESOFT_BILAN` suivies d'un JSON) dans la sortie du job. Mise en place,
 requêtes KQL, partage et alerte : [`docs/log-analytics.md`](docs/log-analytics.md).
 
-Les requêtes filtrent sur le nom de runbook `Move-ItesoftSortantAck` : à adapter
-si le runbook porte un autre nom dans Azure Automation.
+Les requêtes reconnaissent les lignes grâce au préfixe `ITESOFT_` : le nom du
+runbook dans Azure Automation n'a pas d'importance.
 
 ## Historique des corrections
 

@@ -39,7 +39,6 @@ transmet les flux des jobs, y compris ceux exécutés sur le worker hybride.
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
-| where RunbookName_s == "Move-ItesoftSortantAck"
 | where ResultDescription startswith "ITESOFT_MOVE "
 | extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_MOVE ")))
 | where tobool(d.Simulation) == false
@@ -61,7 +60,6 @@ AzureDiagnostics
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
-| where RunbookName_s == "Move-ItesoftSortantAck"
 | where ResultDescription startswith "ITESOFT_ERROR "
 | extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_ERROR ")))
 | project
@@ -80,7 +78,6 @@ AzureDiagnostics
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
-| where RunbookName_s == "Move-ItesoftSortantAck"
 | where ResultDescription startswith "ITESOFT_MOVE "
 | extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_MOVE ")))
 | where tobool(d.Simulation) == false
@@ -93,7 +90,6 @@ AzureDiagnostics
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
-| where RunbookName_s == "Move-ItesoftSortantAck"
 | where ResultDescription startswith "ITESOFT_BILAN "
 | extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_BILAN ")))
 | project
@@ -111,7 +107,8 @@ AzureDiagnostics
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobLogs"
-| where RunbookName_s == "Move-ItesoftSortantAck"
+// Remplacer par le nom du runbook tel qu'il apparaît dans Azure Automation
+| where RunbookName_s == "NOM_DU_RUNBOOK"
 | where ResultType in ("Failed", "Suspended", "Stopped")
 | project TimeGenerated, ResultType, JobId = JobId_g
 | order by TimeGenerated desc
