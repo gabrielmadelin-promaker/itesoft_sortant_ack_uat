@@ -31,7 +31,7 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
 | Paramètre                  | Défaut   | Rôle                                                        |
 |----------------------------|----------|-------------------------------------------------------------|
 | `$Simulation`              | `$false` | `$true` : liste ce qui serait déplacé sans rien toucher     |
-| `$FileMask`                | `*.xml`  | Seuls les fichiers correspondant à ce masque sont déplacés (insensible à la casse) |
+| `$FileMask`                | `*.json` | Seuls les fichiers correspondant à ce masque sont déplacés (insensible à la casse) |
 | `$OverwriteExistingTarget` | `$false` | Écraser un fichier du même nom déjà présent dans la cible   |
 | `$WinScpSessionLog`        | `%TEMP%\itesoft_sortant_ack_winscp.log` | Journal WinSCP détaillé (`$null` pour désactiver) |
 

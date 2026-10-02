@@ -59,8 +59,8 @@ $Simulation = $false
 $OverwriteExistingTarget = $false
 
 # Seuls les fichiers correspondant à ce masque sont déplacés
-# (insensible à la casse : .xml, .XML...). Les autres restent en place.
-$FileMask = "*.xml"
+# (insensible à la casse : .json, .JSON...). Les autres restent en place.
+$FileMask = "*.json"
 
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
