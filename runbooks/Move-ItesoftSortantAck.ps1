@@ -81,6 +81,12 @@ $FileMask = "*.json"
 # est déposé dans chaque sous-dossier par le flux SORTANT et doit y rester.
 $ExcludedFiles = @("config.json")
 
+# Après un renommage refusé par le serveur, nombre de vérifications (et délai
+# entre deux) avant de conclure : le serveur peut avoir déplacé le fichier
+# malgré l'erreur, avec un temps de propagation.
+$RenameCheckRetries      = 5
+$RenameCheckDelaySeconds = 2
+
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
 $WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_$($Environment.ToLowerInvariant())_winscp.log"
@@ -226,11 +232,19 @@ function Move-RemoteFile
         $RenameError = $_.Exception.Message
     }
 
-    # Certains serveurs SFTP renvoient une erreur alors que le renommage a eu
-    # lieu, ou la source a été prise par un autre traitement : on vérifie l'état
-    # réel avant de tenter le repli.
+    # Le serveur ITESOFT (stockage cloud) peut renvoyer « Failure » alors que le
+    # renommage a eu lieu, le fichier n'apparaissant à destination qu'après
+    # quelques secondes. On vérifie donc l'état réel, en patientant, avant de
+    # conclure ou de tenter le repli.
     $SourceExists = $Session.FileExists($SourcePath)
     $TargetExists = $Session.FileExists($TargetPath)
+
+    for ($Attempt = 1; (-not $SourceExists) -and (-not $TargetExists) -and ($Attempt -le $RenameCheckRetries); $Attempt++)
+    {
+        Start-Sleep -Seconds $RenameCheckDelaySeconds
+        $SourceExists = $Session.FileExists($SourcePath)
+        $TargetExists = $Session.FileExists($TargetPath)
+    }
 
     if (-not $SourceExists -and $TargetExists)
     {
@@ -240,7 +254,7 @@ function Move-RemoteFile
 
     if (-not $SourceExists)
     {
-        throw "Renommage refusé ($RenameError) et fichier source disparu sans arriver à destination : vérifier qu'aucun autre traitement ne consomme ce répertoire."
+        throw "Renommage refusé ($RenameError) et fichier source disparu sans arriver à destination après $($RenameCheckRetries * $RenameCheckDelaySeconds) s : vérifier la cible et qu'aucun autre traitement ne consomme ce répertoire."
     }
 
     $TempFile = Join-Path -Path $TempDirectory -ChildPath ([guid]::NewGuid().ToString("N") + ".tmp")
