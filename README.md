@@ -19,15 +19,15 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
 - Paramètre du runbook **`Environment`** : `UAT` ou `PROD` (obligatoire, à
   renseigner dans chaque planification). Le même script sert aux runbooks
   `itesoft_sortant_ack_uat` et `itesoft_sortant_ack_prod`.
-- Variables Azure Automation, suffixées par l'environnement (`<ENV>` = `UAT` ou `PROD`) :
+- Variables Azure Automation (`<ENV>` = `UAT` ou `PROD`) :
 
-| Variable               | Obligatoire | Description                                        |
-|------------------------|-------------|----------------------------------------------------|
-| `SFTP_HOST_<ENV>`      | oui         | Nom ou IP du serveur SFTP                          |
-| `SFTP_PORT_<ENV>`      | oui         | Port (22 en général)                               |
-| `SFTP_USER_<ENV>`      | oui         | Utilisateur                                        |
-| `SFTP_PASSWORD_<ENV>`  | oui         | Mot de passe (variable **chiffrée**)               |
-| `SFTP_HOSTKEY_<ENV>`   | non         | Empreinte SSH, ex. `ssh-ed25519 255 xxxx...`. Sans elle, toutes les clés sont acceptées. |
+| Variable               | Portée       | Obligatoire | Description                                        |
+|------------------------|--------------|-------------|----------------------------------------------------|
+| `SFTP_HOST_<ENV>`      | par env      | oui         | Nom ou IP du serveur SFTP                          |
+| `SFTP_PASSWORD_<ENV>`  | par env      | oui         | Mot de passe (variable **chiffrée**)               |
+| `SFTP_HOSTKEY_<ENV>`   | par env      | non         | Empreinte SSH, ex. `ssh-ed25519 255 xxxx...`. Sans elle, toutes les clés sont acceptées. |
+| `SFTP_USER`            | commune      | oui         | Utilisateur (identique UAT / PROD)                 |
+| `SFTP_PORT`            | commune      | oui         | Port (identique UAT / PROD)                        |
 
 ## Paramètres (en tête du script)
 

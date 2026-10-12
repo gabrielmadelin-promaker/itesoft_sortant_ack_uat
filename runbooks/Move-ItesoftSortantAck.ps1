@@ -25,8 +25,8 @@
     itesoft_sortant_ack_prod : seul le paramètre Environment change.
 
     Variables Azure Automation attendues (<ENV> = UAT ou PROD) :
-        SFTP_HOST_<ENV>, SFTP_PORT_<ENV>, SFTP_USER_<ENV>,
-        SFTP_PASSWORD_<ENV> (chiffrée)
+        Propres à l'environnement : SFTP_HOST_<ENV>, SFTP_PASSWORD_<ENV> (chiffrée)
+        Communes UAT/PROD         : SFTP_USER, SFTP_PORT
     Variable optionnelle :
         SFTP_HOSTKEY_<ENV>  (empreinte SSH, ex. "ssh-ed25519 255 xxxxxxxx...")
 
@@ -326,10 +326,11 @@ try
     # Variables Azure Automation
     # --------------------------------------------------------
 
-    # Variables suffixées par l'environnement : SFTP_HOST_UAT, SFTP_HOST_PROD...
+    # Hôte, mot de passe et empreinte : propres à l'environnement
+    # (SFTP_HOST_UAT, SFTP_HOST_PROD...). Utilisateur et port : communs.
     $VarHost     = "SFTP_HOST_$Environment"
-    $VarPort     = "SFTP_PORT_$Environment"
-    $VarUser     = "SFTP_USER_$Environment"
+    $VarPort     = "SFTP_PORT"
+    $VarUser     = "SFTP_USER"
     $VarPassword = "SFTP_PASSWORD_$Environment"
     $VarHostKey  = "SFTP_HOSTKEY_$Environment"
 
