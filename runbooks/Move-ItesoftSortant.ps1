@@ -11,11 +11,9 @@
     Chaque fichier :
         /root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
     est déplacé et renommé en :
-        /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/facture.xml
+        /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 
-    Chaque sous-dossier ne contient donc qu'une facture à la fois : tant que la
-    précédente facture.xml n'a pas été consommée, la suivante reste dans input
-    (erreur « fichier cible déjà existant ») et est retentée au passage suivant.
+    Exemple : F001_BSE_C1_FR_UBL.xml -> TALENTIA_BSE/output/invoices/C1_FR_UBL/F001.xml
 
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
@@ -78,9 +76,6 @@ $RemoteInput = "/root/outbound/azure_automation/input"
 # <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
 # Exactement 5 segments sans "_".
 $FileNamePattern = '^(?<Numero>[^_]+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
-
-# Nom donné au fichier dans le répertoire cible.
-$TargetFileName = "facture.xml"
 
 # Fichier déposé dans chaque sous-dossier créé.
 $ConfigFileName = "config.json"
@@ -541,7 +536,7 @@ try
         $System       = $SystemCodes[$Code]
         $InvoicesPath = "$RemoteBase/$System/output/invoices"
         $TargetFolder = "$InvoicesPath/$Folder"
-        $TargetPath   = "$TargetFolder/$TargetFileName"
+        $TargetPath   = "$TargetFolder/$($Match.Groups["Numero"].Value).xml"
 
         if ($Simulation)
         {

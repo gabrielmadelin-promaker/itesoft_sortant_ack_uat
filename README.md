@@ -25,8 +25,10 @@ Chaque déplacement est aussi journalisé dans un CSV sur le SFTP.
 
 ```
 /root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/facture.xml
+        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 ```
+
+Exemple : `F001_BSE_C1_FR_UBL.xml` → `TALENTIA_BSE/output/invoices/C1_FR_UBL/F001.xml`
 
 Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du script) :
 
@@ -41,10 +43,7 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
 
 - Le nom doit compter exactement 5 segments séparés par `_` (aucun segment,
   numéro compris, ne contient de `_`). Extension et code insensibles à la casse.
-- Le fichier est **renommé `facture.xml`** dans le sous-dossier cible : chaque
-  sous-dossier ne contient qu'une facture à la fois. Tant que la précédente n'a
-  pas été consommée, la suivante reste dans `input` et est retentée au passage
-  suivant.
+- Le fichier est **renommé `<Numero>.xml`** dans le sous-dossier cible.
 - Les répertoires manquants (`.../output/invoices` et le sous-dossier
   `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés. À la création du
   sous-dossier, un `config.json` y est déposé (une ligne, UTF-8 sans BOM) :
