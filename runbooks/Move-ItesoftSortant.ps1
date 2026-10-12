@@ -9,19 +9,19 @@
     disposant de WinSCP (WinSCPnet.dll).
 
     Chaque fichier :
-        /root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
+        /root/outbound/azure_automation/input/<Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml
     est déplacé et renommé en :
         /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 
-    Exemple : F001_BSE_C1_FR_UBL.xml -> TALENTIA_BSE/output/invoices/C1_FR_UBL/F001.xml
+    Exemple : 400_PTX_0000076993_1790793900222-BSE-T400-FR_B2B-FR_UBL.xml
+           -> TALENTIA_BSE/output/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml
 
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
 
-    Le nom est lu en partant de la droite : les 4 derniers segments (SYS,
-    CompanyCode, LegalTaxContext, Format) ne contiennent pas de "_", tout ce
-    qui précède est le numéro de facture, qui peut en contenir.
-    Exemple : 400_PTX_0000076993_BSE_C1_FR_UBL.xml -> numéro 400_PTX_0000076993
+    Les champs sont séparés par "-". SYS, CompanyCode, LegalTaxContext et
+    Format ne contiennent pas de "-" (mais peuvent contenir des "_"). Le nom est
+    lu depuis la droite : tout ce qui précède SYS est le numéro de facture.
 
     Les répertoires cibles manquants (y compris .../output/invoices) sont créés.
     À la création du sous-dossier, un fichier config.json y est déposé :
@@ -75,9 +75,9 @@ $SystemCodes = @{
 $RemoteBase  = "/root/outbound"
 $RemoteInput = "/root/outbound/azure_automation/input"
 
-# <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-# Le numéro (.+) absorbe les "_" ; les 4 segments suivants n'en contiennent pas.
-$FileNamePattern = '^(?<Numero>.+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
+# <Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml
+# Les 4 derniers champs ne contiennent pas de "-" ; le numéro (.+) prend le reste.
+$FileNamePattern = '^(?<Numero>.+)-(?<Code>[^-]+)-(?<CompanyCode>[^-]+)-(?<LegalTaxContext>[^-]+)-(?<Format>[^-]+)\.xml$'
 
 # Fichier déposé dans chaque sous-dossier créé.
 $ConfigFileName = "config.json"
@@ -516,7 +516,7 @@ try
         if (-not $Match.Success)
         {
             $ErrorCount++
-            $Message = "Nom non conforme (attendu <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml)"
+            $Message = "Nom non conforme (attendu <Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml)"
             Write-Log "$Message, fichier laissé en place : $SourcePath" "ERREUR"
             Write-Event "ITESOFT_ERROR" @{ NomFichier = $FileName; Source = $SourcePath; Message = $Message }
             continue

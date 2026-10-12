@@ -24,11 +24,11 @@ Chaque déplacement est aussi journalisé dans un CSV sur le SFTP.
 ## Flux SORTANT (`Move-ItesoftSortant.ps1`)
 
 ```
-/root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
+/root/outbound/azure_automation/input/<Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml
         └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 ```
 
-Exemple : `F001_BSE_C1_FR_UBL.xml` → `TALENTIA_BSE/output/invoices/C1_FR_UBL/F001.xml`
+Exemple : `400_PTX_0000076993_1790793900222-BSE-T400-FR_B2B-FR_UBL.xml` → `TALENTIA_BSE/output/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml`
 
 Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du script) :
 
@@ -41,11 +41,10 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
 | VIG | TALENTIA_VIGNES |
 | MED | TALENTIA_MEDIA |
 
-- Le nom est lu depuis la droite : les 4 derniers segments (`SYS`,
-  `CompanyCode`, `LegalTaxContext`, `Format`) ne contiennent pas de `_` ; tout
-  ce qui précède est le numéro de facture, qui peut en contenir
-  (ex. `400_PTX_0000076993_BSE_C1_FR_UBL.xml` → `400_PTX_0000076993.xml`).
-  Extension et code insensibles à la casse.
+- Champs séparés par `-` : `SYS`, `CompanyCode`, `LegalTaxContext` et `Format`
+  ne contiennent pas de `-` (des `_` sont possibles). Le nom est lu depuis la
+  droite : tout ce qui précède `SYS` est le numéro de facture. Extension et code
+  insensibles à la casse.
 - Le fichier est **renommé `<Numero>.xml`** dans le sous-dossier cible.
 - Les répertoires manquants (`.../output/invoices` et le sous-dossier
   `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés. À la création du
