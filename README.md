@@ -60,6 +60,9 @@ requêtes KQL, partage et alerte : [`docs/log-analytics.md`](docs/log-analytics.
 Les requêtes reconnaissent les lignes grâce au préfixe `ITESOFT_` : le nom du
 runbook dans Azure Automation n'a pas d'importance.
 
+Architecture cible (4 runbooks UAT/PROD, contrat de journalisation, règles
+d'alerte) : [`docs/alerting-architecture.md`](docs/alerting-architecture.md).
+
 ## Historique des corrections
 
 Version déplacement :
