@@ -25,7 +25,7 @@ Chaque déplacement est aussi journalisé dans un CSV sur le SFTP.
 
 ```
 /root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<même nom>
+        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/facture.xml
 ```
 
 Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du script) :
@@ -41,8 +41,17 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
 
 - Le nom doit compter exactement 5 segments séparés par `_` (aucun segment,
   numéro compris, ne contient de `_`). Extension et code insensibles à la casse.
+- Le fichier est **renommé `facture.xml`** dans le sous-dossier cible : chaque
+  sous-dossier ne contient qu'une facture à la fois. Tant que la précédente n'a
+  pas été consommée, la suivante reste dans `input` et est retentée au passage
+  suivant.
 - Les répertoires manquants (`.../output/invoices` et le sous-dossier
-  `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés.
+  `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés. À la création du
+  sous-dossier, un `config.json` y est déposé (une ligne, UTF-8 sans BOM) :
+  `{"companyCode":"<CompanyCode>","legalTaxContext":"<LegalTaxContext>","format":"<Format>"}`
+- Chaque déplacement est ajouté au journal CSV
+  `/root/outbound/azure_automation/input/itesoft_sortant_copies.csv`
+  (mêmes colonnes que le CSV ACK, nom d'origine dans `NomFichier`).
 - Restent dans `input`, signalés en `[ERREUR]` et retentés au passage suivant :
   nom non conforme, code système inconnu, fichier cible déjà présent.
 - Les fichiers qui ne sont pas des `.xml` sont ignorés sans erreur.

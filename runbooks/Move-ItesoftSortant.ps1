@@ -10,8 +10,12 @@
 
     Chaque fichier :
         /root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-    est déplacé vers :
-        /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<même nom>
+    est déplacé et renommé en :
+        /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/facture.xml
+
+    Chaque sous-dossier ne contient donc qu'une facture à la fois : tant que la
+    précédente facture.xml n'a pas été consommée, la suivante reste dans input
+    (erreur « fichier cible déjà existant ») et est retentée au passage suivant.
 
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
@@ -20,6 +24,11 @@
     numéro de facture compris, ne contient de "_").
 
     Les répertoires cibles manquants (y compris .../output/invoices) sont créés.
+    À la création du sous-dossier, un fichier config.json y est déposé :
+        {"companyCode":"<CompanyCode>","legalTaxContext":"<LegalTaxContext>","format":"<Format>"}
+
+    Chaque déplacement est ajouté (mode append) au journal CSV
+    itesoft_sortant_copies.csv dans le répertoire d'entrée.
 
     Un fichier en anomalie (nom non conforme, code système inconnu, fichier
     cible déjà présent) reste dans input, est signalé en erreur et sera retenté
@@ -69,6 +78,16 @@ $RemoteInput = "/root/outbound/azure_automation/input"
 # <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
 # Exactement 5 segments sans "_".
 $FileNamePattern = '^(?<Numero>[^_]+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
+
+# Nom donné au fichier dans le répertoire cible.
+$TargetFileName = "facture.xml"
+
+# Fichier déposé dans chaque sous-dossier créé.
+$ConfigFileName = "config.json"
+
+# Journal CSV des déplacements (append).
+$RemoteCsv  = "$RemoteInput/itesoft_sortant_copies.csv"
+$CsvColumns = @("DateHeure", "Systeme", "Dossier", "NomFichier", "Source", "Destination", "TailleOctets", "Statut")
 
 # Seuls les fichiers correspondant à ce masque sont traités
 # (insensible à la casse). Les autres restent en place, sans erreur.
@@ -128,6 +147,8 @@ function Write-Event
 
 function New-TransferOptions
 {
+    param([switch]$Append)
+
     $Options = New-Object WinSCP.TransferOptions
     $Options.TransferMode = [WinSCP.TransferMode]::Binary
 
@@ -135,6 +156,11 @@ function New-TransferOptions
     # droits : WinSCP lève alors une erreur alors que le transfert a réussi.
     $Options.PreserveTimestamp = $false
     $Options.FilePermissions   = $null
+
+    if ($Append)
+    {
+        $Options.OverwriteMode = [WinSCP.OverwriteMode]::Append
+    }
 
     return $Options
 }
@@ -145,7 +171,8 @@ function Send-LocalFile
     param(
         [Parameter(Mandatory = $true)] $Session,
         [Parameter(Mandatory = $true)] [string]$LocalPath,
-        [Parameter(Mandatory = $true)] [string]$RemotePath
+        [Parameter(Mandatory = $true)] [string]$RemotePath,
+        [switch]$Append
     )
 
     # PutFiles/GetFiles interprètent la source comme un masque : on l'échappe.
@@ -153,7 +180,7 @@ function Send-LocalFile
         $Session.EscapeFileMask($LocalPath),
         $RemotePath,
         $false,
-        (New-TransferOptions)
+        (New-TransferOptions -Append:$Append)
     ).Check()
 }
 
@@ -213,6 +240,67 @@ function New-RemoteDirectory
             Write-Log "Répertoire créé : $Current" "OK"
         }
     }
+}
+
+function Write-RemoteTextFile
+{
+    # Crée un fichier texte distant (UTF-8 sans BOM, sans saut de ligne final).
+    param(
+        [Parameter(Mandatory = $true)] $Session,
+        [Parameter(Mandatory = $true)] [string]$RemotePath,
+        [Parameter(Mandatory = $true)] [string]$Text,
+        [Parameter(Mandatory = $true)] [string]$TempDirectory
+    )
+
+    $TempFile = Join-Path -Path $TempDirectory -ChildPath ([guid]::NewGuid().ToString("N") + ".tmp")
+
+    try
+    {
+        [System.IO.File]::WriteAllText($TempFile, $Text, (New-Object System.Text.UTF8Encoding($false)))
+        Send-LocalFile -Session $Session -LocalPath $TempFile -RemotePath $RemotePath
+    }
+    finally
+    {
+        if (Test-Path -LiteralPath $TempFile)
+        {
+            Remove-Item -LiteralPath $TempFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Save-PendingRows
+{
+    # Ajoute les lignes en attente à la fin du CSV distant (append) :
+    # seules les nouvelles lignes transitent, quelle que soit la taille du CSV.
+    param(
+        [Parameter(Mandatory = $true)] $Session,
+        [Parameter(Mandatory = $true)] [string]$RemoteCsv,
+        [Parameter(Mandatory = $true)] [string]$TempDirectory
+    )
+
+    if ($script:PendingRows.Count -eq 0)
+    {
+        return
+    }
+
+    $LocalCsv = Join-Path -Path $TempDirectory -ChildPath "itesoft_sortant_copies.csv"
+    $Lines    = @($script:PendingRows | Select-Object $CsvColumns | ConvertTo-Csv -Delimiter ";" -NoTypeInformation)
+
+    if ($script:RemoteCsvExists)
+    {
+        # Sans en-tête ni BOM : le contenu est collé à la fin du fichier.
+        [System.IO.File]::WriteAllLines($LocalCsv, [string[]]@($Lines | Select-Object -Skip 1), (New-Object System.Text.UTF8Encoding($false)))
+        Send-LocalFile -Session $Session -LocalPath $LocalCsv -RemotePath $RemoteCsv -Append
+    }
+    else
+    {
+        # Nouveau fichier : en-tête + BOM (lecture correcte des accents dans Excel).
+        [System.IO.File]::WriteAllLines($LocalCsv, [string[]]$Lines, (New-Object System.Text.UTF8Encoding($true)))
+        Send-LocalFile -Session $Session -LocalPath $LocalCsv -RemotePath $RemoteCsv
+        $script:RemoteCsvExists = $true
+    }
+
+    $script:PendingRows.Clear()
 }
 
 function Move-RemoteFile
@@ -284,7 +372,9 @@ $WorkDirectory = Join-Path -Path $env:TEMP -ChildPath ("itesoft_sortant_" + [gui
 $MovedCount = 0
 $ErrorCount = 0
 
-$script:LastMoveMethod = $null
+$script:LastMoveMethod  = $null
+$script:PendingRows     = New-Object System.Collections.Generic.List[object]
+$script:RemoteCsvExists = $false
 
 try
 {
@@ -408,6 +498,8 @@ try
 
     Write-Log "$($Files.Count) fichier(s) $FileMask dans $RemoteInput."
 
+    $script:RemoteCsvExists = $Session.FileExists($RemoteCsv)
+
     # Répertoires cibles déjà vérifiés ou créés pendant ce passage.
     $KnownFolders = @{}
 
@@ -432,7 +524,10 @@ try
         }
 
         $Code   = $Match.Groups["Code"].Value.ToUpperInvariant()
-        $Folder = "{0}_{1}_{2}" -f $Match.Groups["CompanyCode"].Value, $Match.Groups["LegalTaxContext"].Value, $Match.Groups["Format"].Value
+        $CompanyCode     = $Match.Groups["CompanyCode"].Value
+        $LegalTaxContext = $Match.Groups["LegalTaxContext"].Value
+        $Format          = $Match.Groups["Format"].Value
+        $Folder          = "{0}_{1}_{2}" -f $CompanyCode, $LegalTaxContext, $Format
 
         if (-not $SystemCodes.ContainsKey($Code))
         {
@@ -446,7 +541,7 @@ try
         $System       = $SystemCodes[$Code]
         $InvoicesPath = "$RemoteBase/$System/output/invoices"
         $TargetFolder = "$InvoicesPath/$Folder"
-        $TargetPath   = "$TargetFolder/$FileName"
+        $TargetPath   = "$TargetFolder/$TargetFileName"
 
         if ($Simulation)
         {
@@ -462,8 +557,33 @@ try
 
             if (-not $KnownFolders.ContainsKey($TargetFolder))
             {
-                # Crée .../<SYSTEME>/output/invoices/<sous-dossier> si besoin.
-                New-RemoteDirectory -Session $Session -Root $RemoteBase -Path $TargetFolder
+                if (-not $Session.FileExists($TargetFolder))
+                {
+                    # Crée .../<SYSTEME>/output/invoices/<sous-dossier>.
+                    New-RemoteDirectory -Session $Session -Root $RemoteBase -Path $TargetFolder
+
+                    # config.json du nouveau sous-dossier. En cas d'échec, le
+                    # sous-dossier est retiré pour être recréé complet au
+                    # passage suivant.
+                    $ConfigPath = "$TargetFolder/$ConfigFileName"
+                    $ConfigJson = [ordered]@{
+                        companyCode     = $CompanyCode
+                        legalTaxContext = $LegalTaxContext
+                        format          = $Format
+                    } | ConvertTo-Json -Compress
+
+                    try
+                    {
+                        Write-RemoteTextFile -Session $Session -RemotePath $ConfigPath -Text $ConfigJson -TempDirectory $WorkDirectory
+                        Write-Log "Fichier créé : $ConfigPath $ConfigJson" "OK"
+                    }
+                    catch
+                    {
+                        $ConfigError = $_.Exception.Message
+                        Remove-RemoteFile -Session $Session -RemotePath $TargetFolder
+                        throw "Création de $ConfigPath impossible ($ConfigError), sous-dossier retiré."
+                    }
+                }
 
                 $KnownFolders[$TargetFolder] = $true
             }
@@ -500,6 +620,17 @@ try
 
         Write-Log "Déplacé ($script:LastMoveMethod) : $SourcePath -> $TargetPath" "OK"
         Write-Event "ITESOFT_MOVE" @{ Systeme = $System; CodeSysteme = $Code; Dossier = $Folder; NomFichier = $FileName; Source = $SourcePath; Destination = $TargetPath; TailleOctets = $File.Length; Methode = $script:LastMoveMethod }
+
+        $script:PendingRows.Add([PSCustomObject]@{
+            DateHeure    = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Systeme      = $System
+            Dossier      = $Folder
+            NomFichier   = $FileName
+            Source       = $SourcePath
+            Destination  = $TargetPath
+            TailleOctets = $File.Length
+            Statut       = "DEPLACEMENT_OK"
+        })
     }
 }
 catch
@@ -517,6 +648,26 @@ catch
 }
 finally
 {
+    # Journal CSV : envoi des lignes en fin de traitement (même après une erreur).
+    if ($script:PendingRows.Count -gt 0)
+    {
+        try
+        {
+            if ($null -eq $Session -or -not $Session.Opened)
+            {
+                throw "session SFTP fermée"
+            }
+
+            Save-PendingRows -Session $Session -RemoteCsv $RemoteCsv -TempDirectory $WorkDirectory
+        }
+        catch
+        {
+            $ErrorCount++
+            Write-Log "Lignes non enregistrées dans le CSV ($($_.Exception.Message)) :" "ERREUR"
+            $script:PendingRows | Select-Object $CsvColumns | ConvertTo-Csv -Delimiter ";" -NoTypeInformation | ForEach-Object { Write-Output "    $_" }
+        }
+    }
+
     if ($null -ne $Session)
     {
         try
