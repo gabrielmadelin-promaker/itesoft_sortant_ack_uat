@@ -2,61 +2,52 @@
 
 ## Périmètre
 
-| Runbook                    | Flux    | Env  | Script                         |
-|----------------------------|---------|------|--------------------------------|
-| `itesoft_sortant_ack_uat`  | ACK     | UAT  | `Move-ItesoftSortantAck.ps1`   |
-| `itesoft_sortant_ack_prod` | ACK     | PROD | `Move-ItesoftSortantAck.ps1`   |
-| `itesoft_sortant_uat`      | SORTANT | UAT  | `Move-ItesoftSortant.ps1`      |
-| `itesoft_sortant_prod`     | SORTANT | PROD | `Move-ItesoftSortant.ps1`      |
+Deux runbooks, chacun utilisé pour UAT **et** PROD : l'environnement est le
+**paramètre** `ENVIRONMENT` (`UAT` / `PROD`) renseigné dans chaque planification.
 
-Les deux scripts sont différents ; ce qui les relie, c'est un **contrat de
-journalisation commun** (ci-dessous). Les alertes et le tableau de bord ne
-dépendent que de ce contrat : ils couvrent les 4 runbooks sans être dupliqués.
+| Runbook               | Script                       | Flux    | Environnements |
+|-----------------------|------------------------------|---------|----------------|
+| `itesoft_sortant_ack` | `Move-ItesoftSortantAck.ps1` | ACK     | UAT, PROD      |
+| `itesoft_sortant`     | `Move-ItesoftSortant.ps1`    | SORTANT | UAT, PROD      |
+
+Soit **4 combinaisons à surveiller** : ACK-UAT, ACK-PROD, SORTANT-UAT,
+SORTANT-PROD. Comme le nom du runbook ne dit plus l'environnement, chaque
+ligne de log porte le flux et l'environnement, et l'alerting s'appuie dessus.
 
 ```
- Runbooks (worker hybride)          Azure                         Équipe
- ┌────────────────────────┐
- │ itesoft_sortant_ack_*  │──┐  sortie des jobs
- │ itesoft_sortant_*      │──┼─► Paramètre de diagnostic ──► Log Analytics « ITESOFT »
- └────────────────────────┘  │   (JobLogs + JobStreams)        │        │
-                             │                                 │        ├─► Tableau de bord
-                (1 par compte Automation)                       │        │
-                                                               ▼        │
-                                              2 règles d'alerte ──► ag-itesoft (e-mail)
+ Runbooks (worker hybride)               Azure                         Équipe
+ ┌───────────────────────────────┐
+ │ itesoft_sortant_ack (UAT/PROD)│──┐  sortie des jobs
+ │ itesoft_sortant     (UAT/PROD)│──┼─► Paramètre de diagnostic ──► Log Analytics « ITESOFT »
+ └───────────────────────────────┘  │   (JobLogs + JobStreams)        │        │
+                                                                     │        ├─► Tableau de bord
+                                                                     ▼        │
+                                                    2 règles d'alerte ──► ag-itesoft (e-mail)
 ```
 
-## Contrat de journalisation (obligatoire pour chaque script)
+## Contrat de journalisation (respecté par les deux scripts)
 
-Chaque script écrit dans la sortie du job (`Write-Output`) :
+| Ligne écrite dans la sortie du job | Rôle |
+|---|---|
+| `AAAA-MM-JJ HH:MM:SS [ERREUR] [<FLUX> <ENV>] <message>` | déclenche l'alerte « Erreurs » |
+| `ITESOFT_BILAN {"Flux":"ACK","Env":"PROD","Deplacements":n,"Erreurs":n,...}` | une fois par exécution : sert à détecter une exécution manquante |
+| `ITESOFT_MOVE {...}` / `ITESOFT_ERROR {...}` | détail par fichier (tableau de bord) |
 
-| Ligne | Quand | Obligatoire |
-|---|---|---|
-| `AAAA-MM-JJ HH:MM:SS [ERREUR] <message>` | à chaque erreur, quelle qu'elle soit | **oui** — déclenche l'alerte « Erreurs » |
-| `ITESOFT_BILAN {"Deplacements":n,"Erreurs":n,"Simulation":false,...}` | une fois, en fin d'exécution (bloc `finally`) | **oui** — sert à détecter un runbook arrêté |
-| `ITESOFT_ERROR {...}` | erreur sur un fichier précis | recommandé (détail par fichier) |
-| `ITESOFT_MOVE {...}` / autres `ITESOFT_<TYPE> {...}` | événement métier propre au flux | libre |
-
-Les fonctions `Write-Log` et `Write-Event` de `Move-ItesoftSortantAck.ps1`
-peuvent être reprises telles quelles dans le script du flux SORTANT.
-
-L'environnement et le flux sont déduits du **nom du runbook** (colonne
-`RunbookName_s`), d'où la convention de nommage `itesoft_sortant[_ack]_<uat|prod>`
-à respecter strictement.
+Exemple : `2026-10-12 13:51:34 [ERREUR] [SORTANT PROD] Code système inconnu 'XXX' ...`
 
 ## Socle Azure
 
-| Élément | Valeur | Remarque |
-|---|---|---|
-| Espace Log Analytics | `ITESOFT` (unique, UAT + PROD) | rétention à ajuster (30 j par défaut) |
-| Paramètre de diagnostic | JobLogs + JobStreams → `ITESOFT` | **un par compte Automation** : si UAT et PROD sont dans deux comptes, le créer sur les deux |
-| Groupe d'actions | `ag-itesoft` | unique, e-mail de l'équipe |
+| Élément | Valeur |
+|---|---|
+| Espace Log Analytics | `ITESOFT` (unique, UAT + PROD) |
+| Paramètre de diagnostic | JobLogs + JobStreams → `ITESOFT`, sur le compte `bse-fabric-prod-fr-automation` (déjà en place) |
+| Groupe d'actions | `ag-itesoft` (unique, e-mail de l'équipe) |
 
 ## Règles d'alerte
 
-Deux règles, chacune couvrant les 4 runbooks, **fractionnées par la dimension
-`Runbook`** : une alerte distincte (et un e-mail distinct) par runbook concerné,
-avec son nom et son environnement. Ajouter un runbook ne demande pas de
-nouvelle règle.
+Deux règles couvrent les 4 combinaisons. Chacune est **fractionnée par les
+dimensions `Flux` et `Env`** : une alerte (et un e-mail) distincte par
+combinaison concernée, dont l'objet indique par exemple `Flux = SORTANT, Env = PROD`.
 
 ### 1. `ITESOFT - Erreurs` — gravité 2
 
@@ -65,71 +56,76 @@ AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
 | where RunbookName_s startswith "itesoft_sortant"
 | where ResultDescription has "[ERREUR]"
-| extend Env  = toupper(extract(@"_(uat|prod)$", 1, RunbookName_s)),
-         Flux = iff(RunbookName_s has "_ack_", "ACK", "SORTANT")
-| project TimeGenerated, Runbook = RunbookName_s, Env, Flux, Erreur = ResultDescription
+| extend Flux = extract(@"\[ERREUR\] \[(\w+) (\w+)\]", 1, ResultDescription),
+         Env  = extract(@"\[ERREUR\] \[(\w+) (\w+)\]", 2, ResultDescription)
+| project TimeGenerated, Flux, Env, Runbook = RunbookName_s, Erreur = ResultDescription
 ```
 
-- Mesure : **Lignes de table** — Nombre — **> 0**
-- Fractionner par dimensions : **Runbook** (et éventuellement Env)
-- Granularité 15 min — Fréquence 15 min
-- Actions : `ag-itesoft`
+| Réglage | Valeur |
+|---|---|
+| Mesure | Lignes de table — Nombre — **> 0** |
+| Fractionner par dimensions | **Flux**, **Env** |
+| Granularité / Fréquence | 15 min / 15 min |
+| Actions | `ag-itesoft` |
 
-### 2. `ITESOFT - Runbook arrêté` — gravité 1
+### 2. `ITESOFT - Exécution manquante` — gravité 1
 
-Un runbook qui ne tourne plus ne produit **aucune** ligne : on compare donc à la
-liste des runbooks **attendus** (à tenir à jour, et à vider d'un runbook UAT
-volontairement arrêté pour éviter les fausses alertes).
+Une combinaison qui ne tourne plus (planification désactivée, worker arrêté,
+paramètre `ENVIRONMENT` absent, plantage) ne produit **aucune** ligne : on
+compare donc à la liste des combinaisons **attendues**.
 
 ```kusto
-let attendus = datatable(Runbook:string)
+let attendus = datatable(Flux:string, Env:string)
 [
-    "itesoft_sortant_ack_uat",
-    "itesoft_sortant_ack_prod",
-    "itesoft_sortant_uat",
-    "itesoft_sortant_prod"
+    "ACK",     "UAT",
+    "ACK",     "PROD",
+    "SORTANT", "UAT",
+    "SORTANT", "PROD"
 ];
 let vus = AzureDiagnostics
     | where TimeGenerated > ago(1h)
     | where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
     | where ResultDescription startswith "ITESOFT_BILAN "
-    | summarize Executions = count() by Runbook = RunbookName_s;
+    | extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_BILAN ")))
+    | summarize Executions = count() by Flux = tostring(d.Flux), Env = tostring(d.Env);
 attendus
-| join kind=leftouter vus on Runbook
+| join kind=leftouter vus on Flux, Env
 | where isempty(Executions) or Executions == 0
-| extend Env = toupper(extract(@"_(uat|prod)$", 1, Runbook))
-| project Runbook, Env
+| project Flux, Env
 ```
 
-- Mesure : **Lignes de table** — Nombre — **> 0**
-- Fractionner par dimensions : **Runbook**
-- Granularité **1 h** — Fréquence 15 min (`ago(1h)` doit rester ≥ à
-  l'intervalle de planification le plus long des 4 runbooks)
-- Actions : `ag-itesoft`
+| Réglage | Valeur |
+|---|---|
+| Mesure | Lignes de table — Nombre — **> 0** |
+| Fractionner par dimensions | **Flux**, **Env** |
+| Granularité / Fréquence | **1 h** / 15 min |
+| Actions | `ag-itesoft` |
 
-> Si un jour la PROD doit être traitée différemment (gravité, destinataires),
-> il suffira de dupliquer chaque règle en ajoutant `| where Env == "PROD"` /
-> `"UAT"`.
+- `ago(1h)` doit rester ≥ à l'intervalle de planification le plus long.
+- Pour suspendre volontairement une combinaison (ex. UAT arrêtée), la retirer
+  de `attendus`, sinon l'alerte se déclenche.
+
+> Si la PROD doit un jour être traitée différemment (gravité, destinataires),
+> dupliquer chaque règle en ajoutant `| where Env == "PROD"` / `"UAT"`.
 
 ## Tableau de bord
 
-Les requêtes de [`log-analytics.md`](log-analytics.md) deviennent multi-runbooks
-en remplaçant le filtre de type d'événement par :
+Les lignes `ITESOFT_MOVE` / `ITESOFT_ERROR` / `ITESOFT_BILAN` contiennent
+`Flux` et `Env` : il suffit de les extraire du JSON, par exemple
 
 ```kusto
-| where RunbookName_s startswith "itesoft_sortant"
-| extend Env  = toupper(extract(@"_(uat|prod)$", 1, RunbookName_s)),
-         Flux = iff(RunbookName_s has "_ack_", "ACK", "SORTANT")
+AzureDiagnostics
+| where ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams"
+| where ResultDescription startswith "ITESOFT_MOVE "
+| extend d = parse_json(substring(ResultDescription, strlen("ITESOFT_MOVE ")))
+| where tobool(d.Simulation) == false
+| summarize Fichiers = count() by Jour = bin(TimeGenerated, 1d), Flux = tostring(d.Flux), Env = tostring(d.Env)
+| render columnchart
 ```
 
-puis en ajoutant `Env` et `Flux` aux colonnes / au `summarize`. Tuiles
-conseillées : erreurs (7 j) par runbook, bilan de la dernière exécution de
-chaque runbook, volume par jour × flux × env.
+## Ajouter un environnement ou un flux (checklist)
 
-## Mise en place d'un nouveau runbook (checklist)
-
-1. Nommer le runbook selon la convention `itesoft_sortant[_ack]_<uat|prod>`.
-2. Vérifier que le script respecte le contrat (`[ERREUR]`, `ITESOFT_BILAN`).
-3. Publier, planifier sur le **worker hybride**.
-4. Vérifier que son compte Automation a le paramètre de diagnostic vers `ITESOFT`.
-5. L'ajouter à la liste `attendus` de la règle « Runbook arrêté ».
+1. Planification du runbook avec le bon `ENVIRONMENT`, sur le **worker hybride**.
+2. Variables SFTP de l'environnement (`SFTP_HOST_<ENV>`, `SFTP_PASSWORD_<ENV>`).
+3. Ajouter la combinaison à `attendus` dans la règle « Exécution manquante ».
+4. Nouveau script : respecter le contrat de journalisation ci-dessus.

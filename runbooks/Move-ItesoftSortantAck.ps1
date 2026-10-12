@@ -21,8 +21,8 @@
     la source disparaissant après déplacement, aucun fichier n'est traité
     deux fois.
 
-    Le même script sert aux runbooks itesoft_sortant_ack_uat et
-    itesoft_sortant_ack_prod : seul le paramètre Environment change.
+    Runbook itesoft_sortant_ack, utilisé pour UAT et PROD : seul le paramètre
+    Environment (renseigné dans chaque planification) change.
 
     Variables Azure Automation attendues (<ENV> = UAT ou PROD) :
         Propres à l'environnement : SFTP_HOST_<ENV>, SFTP_PASSWORD_<ENV> (chiffrée)
@@ -98,7 +98,9 @@ function Write-Log
         [string]$Level = "INFO"
     )
 
-    Write-Output ("{0} [{1}] {2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Message)
+    # [<Flux> <Env>] permet à l'alerting de savoir d'où vient chaque ligne,
+    # le même runbook servant à UAT et à PROD.
+    Write-Output ("{0} [{1}] [{2} {3}] {4}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Level, $Flux, $Environment, $Message)
 }
 
 function Write-Event

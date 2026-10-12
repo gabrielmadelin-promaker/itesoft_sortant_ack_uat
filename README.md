@@ -1,13 +1,13 @@
 # itesoft_sortant_ack_uat
 
 Runbooks Azure Automation (Hybrid Runbook Worker Windows + WinSCP) qui
-déplacent les fichiers ITESOFT sur le serveur SFTP. Deux scripts, chacun
-utilisé par un runbook UAT et un runbook PROD (paramètre `Environment`) :
+déplacent les fichiers ITESOFT sur le serveur SFTP. Deux runbooks, chacun
+utilisé pour UAT et PROD via le paramètre `Environment` des planifications :
 
 | Script | Runbooks | Flux |
 |---|---|---|
-| [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1) | `itesoft_sortant_ack_uat`, `itesoft_sortant_ack_prod` | ACK : invoices des systèmes → sortie commune |
-| [`runbooks/Move-ItesoftSortant.ps1`](runbooks/Move-ItesoftSortant.ps1) | `itesoft_sortant_uat`, `itesoft_sortant_prod` | SORTANT : entrée commune → invoices du système |
+| [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1) | `itesoft_sortant_ack` | ACK : invoices des systèmes → sortie commune |
+| [`runbooks/Move-ItesoftSortant.ps1`](runbooks/Move-ItesoftSortant.ps1) | `itesoft_sortant` | SORTANT : entrée commune → invoices du système |
 
 Prérequis, variables et paramètre `Environment` : communs aux deux scripts
 (voir ci-dessous).
@@ -106,7 +106,7 @@ requêtes KQL, partage et alerte : [`docs/log-analytics.md`](docs/log-analytics.
 Les requêtes reconnaissent les lignes grâce au préfixe `ITESOFT_` : le nom du
 runbook dans Azure Automation n'a pas d'importance.
 
-Architecture cible (4 runbooks UAT/PROD, contrat de journalisation, règles
+Architecture cible (2 runbooks × UAT/PROD, contrat de journalisation, règles
 d'alerte) : [`docs/alerting-architecture.md`](docs/alerting-architecture.md).
 
 ## Historique des corrections
