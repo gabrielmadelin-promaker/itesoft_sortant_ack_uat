@@ -77,6 +77,10 @@ $OverwriteExistingTarget = $false
 # (insensible à la casse : .json, .JSON...). Les autres restent en place.
 $FileMask = "*.json"
 
+# Fichiers jamais déplacés, même s'ils correspondent au masque : config.json
+# est déposé dans chaque sous-dossier par le flux SORTANT et doit y rester.
+$ExcludedFiles = @("config.json")
+
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
 $WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_$($Environment.ToLowerInvariant())_winscp.log"
@@ -220,6 +224,23 @@ function Move-RemoteFile
     catch
     {
         $RenameError = $_.Exception.Message
+    }
+
+    # Certains serveurs SFTP renvoient une erreur alors que le renommage a eu
+    # lieu, ou la source a été prise par un autre traitement : on vérifie l'état
+    # réel avant de tenter le repli.
+    $SourceExists = $Session.FileExists($SourcePath)
+    $TargetExists = $Session.FileExists($TargetPath)
+
+    if (-not $SourceExists -and $TargetExists)
+    {
+        $script:LastMoveMethod = "RENAME_CONFIRMED"
+        return
+    }
+
+    if (-not $SourceExists)
+    {
+        throw "Renommage refusé ($RenameError) et fichier source disparu sans arriver à destination : vérifier qu'aucun autre traitement ne consomme ce répertoire."
     }
 
     $TempFile = Join-Path -Path $TempDirectory -ChildPath ([guid]::NewGuid().ToString("N") + ".tmp")
@@ -478,7 +499,7 @@ try
             {
                 $Files = @(
                     $Session.ListDirectory($FolderPath).Files |
-                    Where-Object { -not $_.IsDirectory -and $_.Name -like $FileMask } |
+                    Where-Object { -not $_.IsDirectory -and $_.Name -like $FileMask -and $ExcludedFiles -notcontains $_.Name } |
                     Sort-Object Name
                 )
             }

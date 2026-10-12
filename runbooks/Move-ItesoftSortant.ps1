@@ -328,6 +328,23 @@ function Move-RemoteFile
         $RenameError = $_.Exception.Message
     }
 
+    # Certains serveurs SFTP renvoient une erreur alors que le renommage a eu
+    # lieu, ou la source a été prise par un autre traitement : on vérifie l'état
+    # réel avant de tenter le repli.
+    $SourceExists = $Session.FileExists($SourcePath)
+    $TargetExists = $Session.FileExists($TargetPath)
+
+    if (-not $SourceExists -and $TargetExists)
+    {
+        $script:LastMoveMethod = "RENAME_CONFIRMED"
+        return
+    }
+
+    if (-not $SourceExists)
+    {
+        throw "Renommage refusé ($RenameError) et fichier source disparu sans arriver à destination : vérifier qu'aucun autre traitement ne consomme ce répertoire."
+    }
+
     $TempFile = Join-Path -Path $TempDirectory -ChildPath ([guid]::NewGuid().ToString("N") + ".tmp")
 
     try
