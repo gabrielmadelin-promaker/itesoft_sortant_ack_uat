@@ -6,8 +6,8 @@ utilisé pour UAT et PROD via le paramètre `Environment` des planifications :
 
 | Script | Runbooks | Flux |
 |---|---|---|
-| [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1) | `itesoft_sortant_ack` | ACK : invoices des systèmes → sortie commune |
-| [`runbooks/Move-ItesoftSortant.ps1`](runbooks/Move-ItesoftSortant.ps1) | `itesoft_sortant` | SORTANT : entrée commune → invoices du système |
+| [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1) | `itesoft_sortant_ack` | ACK : `<SYSTEME>/output/invoices` → `azure_automation/output` |
+| [`runbooks/Move-ItesoftSortant.ps1`](runbooks/Move-ItesoftSortant.ps1) | `itesoft_sortant` | SORTANT : `azure_automation/input` → `<SYSTEME>/input/invoices` |
 
 Prérequis, variables et paramètre `Environment` : communs aux deux scripts
 (voir ci-dessous).
@@ -25,10 +25,10 @@ Chaque déplacement est aussi journalisé dans un CSV sur le SFTP.
 
 ```
 /root/outbound/azure_automation/input/<Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml
-        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
+        └──► /root/outbound/<SYSTEME>/input/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 ```
 
-Exemple : `400_PTX_0000076993_1790793900222-BSE-T400-FR_B2B-FR_UBL.xml` → `TALENTIA_BSE/output/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml`
+Exemple : `400_PTX_0000076993_1790793900222-BSE-T400-FR_B2B-FR_UBL.xml` → `TALENTIA_BSE/input/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml`
 
 Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du script) :
 
@@ -46,7 +46,7 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
   droite : tout ce qui précède `SYS` est le numéro de facture. Extension et code
   insensibles à la casse.
 - Le fichier est **renommé `<Numero>.xml`** dans le sous-dossier cible.
-- Les répertoires manquants (`.../output/invoices` et le sous-dossier
+- Les répertoires manquants (`.../input/invoices` et le sous-dossier
   `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés. À la création du
   sous-dossier, un `config.json` y est déposé (une ligne, UTF-8 sans BOM) :
   `{"companyCode":"<CompanyCode>","legalTaxContext":"<LegalTaxContext>","format":"<Format>"}`

@@ -11,10 +11,10 @@
     Chaque fichier :
         /root/outbound/azure_automation/input/<Numero>-<SYS>-<CompanyCode>-<LegalTaxContext>-<Format>.xml
     est déplacé et renommé en :
-        /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
+        /root/outbound/<SYSTEME>/input/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<Numero>.xml
 
     Exemple : 400_PTX_0000076993_1790793900222-BSE-T400-FR_B2B-FR_UBL.xml
-           -> TALENTIA_BSE/output/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml
+           -> TALENTIA_BSE/input/invoices/T400_FR_B2B_FR_UBL/400_PTX_0000076993_1790793900222.xml
 
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
@@ -23,7 +23,7 @@
     Format ne contiennent pas de "-" (mais peuvent contenir des "_"). Le nom est
     lu depuis la droite : tout ce qui précède SYS est le numéro de facture.
 
-    Les répertoires cibles manquants (y compris .../output/invoices) sont créés.
+    Les répertoires cibles manquants (y compris .../input/invoices) sont créés.
     À la création du sous-dossier, un fichier config.json y est déposé :
         {"companyCode":"<CompanyCode>","legalTaxContext":"<LegalTaxContext>","format":"<Format>"}
 
@@ -554,7 +554,7 @@ try
         }
 
         $System       = $SystemCodes[$Code]
-        $InvoicesPath = "$RemoteBase/$System/output/invoices"
+        $InvoicesPath = "$RemoteBase/$System/input/invoices"
         $TargetFolder = "$InvoicesPath/$Folder"
         $TargetPath   = "$TargetFolder/$($Match.Groups["Numero"].Value).xml"
 
@@ -574,7 +574,7 @@ try
             {
                 if (-not $Session.FileExists($TargetFolder))
                 {
-                    # Crée .../<SYSTEME>/output/invoices/<sous-dossier>.
+                    # Crée .../<SYSTEME>/input/invoices/<sous-dossier>.
                     New-RemoteDirectory -Session $Session -Root $RemoteBase -Path $TargetFolder
 
                     # config.json du nouveau sous-dossier. En cas d'échec, le

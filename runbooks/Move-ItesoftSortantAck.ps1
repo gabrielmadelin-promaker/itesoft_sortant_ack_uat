@@ -77,10 +77,6 @@ $OverwriteExistingTarget = $false
 # (insensible à la casse : .json, .JSON...). Les autres restent en place.
 $FileMask = "*.json"
 
-# Fichiers jamais déplacés, même s'ils correspondent au masque : config.json
-# est déposé dans chaque sous-dossier par le flux SORTANT et doit y rester.
-$ExcludedFiles = @("config.json")
-
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
 $WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_$($Environment.ToLowerInvariant())_winscp.log"
@@ -498,7 +494,7 @@ try
             {
                 $Files = @(
                     $Session.ListDirectory($FolderPath).Files |
-                    Where-Object { -not $_.IsDirectory -and $_.Name -like $FileMask -and $ExcludedFiles -notcontains $_.Name } |
+                    Where-Object { -not $_.IsDirectory -and $_.Name -like $FileMask } |
                     Sort-Object Name
                 )
             }
