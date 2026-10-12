@@ -16,15 +16,18 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
 
 - Hybrid Worker Windows avec WinSCP installé
   (`C:\Program Files (x86)\WinSCP\WinSCPnet.dll` et `WinSCP.exe` dans le même dossier).
-- Variables Azure Automation :
+- Paramètre du runbook **`Environment`** : `UAT` ou `PROD` (obligatoire, à
+  renseigner dans chaque planification). Le même script sert aux runbooks
+  `itesoft_sortant_ack_uat` et `itesoft_sortant_ack_prod`.
+- Variables Azure Automation, suffixées par l'environnement (`<ENV>` = `UAT` ou `PROD`) :
 
-| Variable        | Obligatoire | Description                                        |
-|-----------------|-------------|----------------------------------------------------|
-| `SFTP_HOST`     | oui         | Nom ou IP du serveur SFTP                          |
-| `SFTP_PORT`     | oui         | Port (22 en général)                               |
-| `SFTP_USER`     | oui         | Utilisateur                                        |
-| `SFTP_PASSWORD` | oui         | Mot de passe (variable **chiffrée**)               |
-| `SFTP_HOSTKEY`  | non         | Empreinte SSH, ex. `ssh-ed25519 255 xxxx...`. Sans elle, toutes les clés sont acceptées. |
+| Variable               | Obligatoire | Description                                        |
+|------------------------|-------------|----------------------------------------------------|
+| `SFTP_HOST_<ENV>`      | oui         | Nom ou IP du serveur SFTP                          |
+| `SFTP_PORT_<ENV>`      | oui         | Port (22 en général)                               |
+| `SFTP_USER_<ENV>`      | oui         | Utilisateur                                        |
+| `SFTP_PASSWORD_<ENV>`  | oui         | Mot de passe (variable **chiffrée**)               |
+| `SFTP_HOSTKEY_<ENV>`   | non         | Empreinte SSH, ex. `ssh-ed25519 255 xxxx...`. Sans elle, toutes les clés sont acceptées. |
 
 ## Paramètres (en tête du script)
 
@@ -33,7 +36,7 @@ Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck
 | `$Simulation`              | `$false` | `$true` : liste ce qui serait déplacé sans rien toucher     |
 | `$FileMask`                | `*.json` | Seuls les fichiers correspondant à ce masque sont déplacés (insensible à la casse) |
 | `$OverwriteExistingTarget` | `$false` | Écraser un fichier du même nom déjà présent dans la cible   |
-| `$WinScpSessionLog`        | `%TEMP%\itesoft_sortant_ack_winscp.log` | Journal WinSCP détaillé (`$null` pour désactiver) |
+| `$WinScpSessionLog`        | `%TEMP%\itesoft_sortant_ack_<env>_winscp.log` | Journal WinSCP détaillé (`$null` pour désactiver) |
 
 ## Fonctionnement
 

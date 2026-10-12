@@ -21,13 +21,29 @@
     la source disparaissant après déplacement, aucun fichier n'est traité
     deux fois.
 
-    Variables Azure Automation attendues :
-        SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_PASSWORD (chiffrée)
+    Le même script sert aux runbooks itesoft_sortant_ack_uat et
+    itesoft_sortant_ack_prod : seul le paramètre Environment change.
+
+    Variables Azure Automation attendues (<ENV> = UAT ou PROD) :
+        SFTP_HOST_<ENV>, SFTP_PORT_<ENV>, SFTP_USER_<ENV>,
+        SFTP_PASSWORD_<ENV> (chiffrée)
     Variable optionnelle :
-        SFTP_HOSTKEY  (empreinte SSH, ex. "ssh-ed25519 255 xxxxxxxx...")
+        SFTP_HOSTKEY_<ENV>  (empreinte SSH, ex. "ssh-ed25519 255 xxxxxxxx...")
+
+.PARAMETER Environment
+    UAT ou PROD. Détermine les variables SFTP utilisées.
 #>
 
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("UAT", "PROD")]
+    [string]$Environment
+)
+
 $ErrorActionPreference = "Stop"
+
+$Environment = $Environment.ToUpperInvariant()
+$Flux        = "ACK"
 
 # ============================================================
 # CONFIGURATION
@@ -64,7 +80,7 @@ $FileMask = "*.json"
 
 # Journal de session WinSCP (très utile pour diagnostiquer).
 # Mettre $null pour le désactiver.
-$WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_winscp.log"
+$WinScpSessionLog = Join-Path -Path $env:TEMP -ChildPath "itesoft_sortant_ack_$($Environment.ToLowerInvariant())_winscp.log"
 
 # Colonnes du CSV (identiques à l'ancienne version, pour l'append).
 $CsvColumns = @("DateHeure", "Systeme", "Dossier", "NomFichier", "Source", "Destination", "TailleOctets", "Statut")
@@ -100,6 +116,8 @@ function Write-Event
         [hashtable]$Data
     )
 
+    $Data["Env"]        = $Environment
+    $Data["Flux"]       = $Flux
     $Data["Simulation"] = $Simulation
     Write-Output ("{0} {1}" -f $Type, ([PSCustomObject]$Data | ConvertTo-Json -Compress))
 }
@@ -287,7 +305,7 @@ $script:LastMoveMethod  = $null
 
 try
 {
-    Write-Log "Début du Runbook sur la machine $env:COMPUTERNAME."
+    Write-Log "Début du Runbook $Flux $Environment sur la machine $env:COMPUTERNAME."
     Write-Log "PowerShell $($PSVersionTable.PSVersion) - Mode simulation : $Simulation."
 
     New-Item -ItemType Directory -Path $WorkDirectory -Force | Out-Null
@@ -308,40 +326,51 @@ try
     # Variables Azure Automation
     # --------------------------------------------------------
 
-    $SftpHost     = [string](Get-AutomationVariable -Name "SFTP_HOST")
-    $SftpPort     = [string](Get-AutomationVariable -Name "SFTP_PORT")
-    $SftpUser     = [string](Get-AutomationVariable -Name "SFTP_USER")
-    $SftpPassword = [string](Get-AutomationVariable -Name "SFTP_PASSWORD")
+    # Variables suffixées par l'environnement : SFTP_HOST_UAT, SFTP_HOST_PROD...
+    $VarHost     = "SFTP_HOST_$Environment"
+    $VarPort     = "SFTP_PORT_$Environment"
+    $VarUser     = "SFTP_USER_$Environment"
+    $VarPassword = "SFTP_PASSWORD_$Environment"
+    $VarHostKey  = "SFTP_HOSTKEY_$Environment"
 
-    $SftpHostKey = $null
-    try
-    {
-        $SftpHostKey = [string](Get-AutomationVariable -Name "SFTP_HOSTKEY")
-    }
-    catch
-    {
-        # Variable optionnelle.
-    }
+    $Required = [ordered]@{}
 
-    $Required = [ordered]@{
-        SFTP_HOST     = $SftpHost
-        SFTP_PORT     = $SftpPort
-        SFTP_USER     = $SftpUser
-        SFTP_PASSWORD = $SftpPassword
-    }
-
-    foreach ($Name in $Required.Keys)
+    foreach ($Name in @($VarHost, $VarPort, $VarUser, $VarPassword))
     {
+        try
+        {
+            $Required[$Name] = [string](Get-AutomationVariable -Name $Name)
+        }
+        catch
+        {
+            throw "La variable Azure Automation $Name est introuvable : $($_.Exception.Message)"
+        }
+
         if ([string]::IsNullOrWhiteSpace($Required[$Name]))
         {
             throw "La variable $Name est vide."
         }
     }
 
+    $SftpHost     = $Required[$VarHost]
+    $SftpPort     = $Required[$VarPort]
+    $SftpUser     = $Required[$VarUser]
+    $SftpPassword = $Required[$VarPassword]
+
+    $SftpHostKey = $null
+    try
+    {
+        $SftpHostKey = [string](Get-AutomationVariable -Name $VarHostKey)
+    }
+    catch
+    {
+        # Variable optionnelle.
+    }
+
     $PortNumber = 0
     if (-not [int]::TryParse($SftpPort.Trim(), [ref]$PortNumber))
     {
-        throw "La variable SFTP_PORT n'est pas un nombre : '$SftpPort'."
+        throw "La variable $VarPort n'est pas un nombre : '$SftpPort'."
     }
 
     # --------------------------------------------------------
@@ -364,7 +393,7 @@ try
     {
         # Même comportement que -hostkey=*
         $SessionOptions.GiveUpSecurityAndAcceptAnySshHostKey = $true
-        Write-Log "SFTP_HOSTKEY non définie : toutes les clés d'hôte SSH sont acceptées." "ATTENTION"
+        Write-Log "$VarHostKey non définie : toutes les clés d'hôte SSH sont acceptées." "ATTENTION"
     }
 
     $Session = New-Object WinSCP.Session
