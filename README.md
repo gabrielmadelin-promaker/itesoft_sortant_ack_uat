@@ -1,16 +1,52 @@
 # itesoft_sortant_ack_uat
 
-Runbook Azure Automation (Hybrid Runbook Worker Windows + WinSCP) qui
-**déplace** les fichiers ITESOFT sortants des systèmes TALENTIA vers un
-répertoire de sortie unique sur le serveur SFTP, et journalise chaque
-déplacement dans un CSV.
+Runbooks Azure Automation (Hybrid Runbook Worker Windows + WinSCP) qui
+déplacent les fichiers ITESOFT sur le serveur SFTP. Deux scripts, chacun
+utilisé par un runbook UAT et un runbook PROD (paramètre `Environment`) :
+
+| Script | Runbooks | Flux |
+|---|---|---|
+| [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1) | `itesoft_sortant_ack_uat`, `itesoft_sortant_ack_prod` | ACK : invoices des systèmes → sortie commune |
+| [`runbooks/Move-ItesoftSortant.ps1`](runbooks/Move-ItesoftSortant.ps1) | `itesoft_sortant_uat`, `itesoft_sortant_prod` | SORTANT : entrée commune → invoices du système |
+
+Prérequis, variables et paramètre `Environment` : communs aux deux scripts
+(voir ci-dessous).
+
+## Flux ACK (`Move-ItesoftSortantAck.ps1`)
 
 ```
-/root/outbound/<SYSTEME>/output/invoices/<SOUS-DOSSIER>/<FICHIER>
-        └──► /root/outbound/azure_automation/output/<FICHIER>
+/root/outbound/<SYSTEME>/output/invoices/<SOUS-DOSSIER>/<FICHIER>.json
+        └──► /root/outbound/azure_automation/output/<FICHIER>.json
 ```
 
-Script : [`runbooks/Move-ItesoftSortantAck.ps1`](runbooks/Move-ItesoftSortantAck.ps1)
+Chaque déplacement est aussi journalisé dans un CSV sur le SFTP.
+
+## Flux SORTANT (`Move-ItesoftSortant.ps1`)
+
+```
+/root/outbound/azure_automation/input/<Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
+        └──► /root/outbound/<SYSTEME>/output/invoices/<CompanyCode>_<LegalTaxContext>_<Format>/<même nom>
+```
+
+Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du script) :
+
+| Code | Système |
+|---|---|
+| BLS | TALENTIA_BLUECARSHARING |
+| BLU | TALENTIA_BLUEUS |
+| BSE | TALENTIA_BSE |
+| ODE | TALENTIA_ODET |
+| VIG | TALENTIA_VIGNES |
+| MED | TALENTIA_MEDIA |
+
+- Le nom est lu depuis la droite : le numéro de facture peut contenir des `_`,
+  pas les trois derniers segments. Extension et code insensibles à la casse.
+- Le sous-dossier `<CompanyCode>_<LegalTaxContext>_<Format>` est créé s'il
+  n'existe pas ; le répertoire `.../output/invoices` du système doit exister.
+- Restent dans `input`, signalés en `[ERREUR]` et retentés au passage suivant :
+  nom non conforme, code système inconnu, répertoire invoices absent, fichier
+  cible déjà présent.
+- Les fichiers qui ne sont pas des `.xml` sont ignorés sans erreur.
 
 ## Prérequis
 

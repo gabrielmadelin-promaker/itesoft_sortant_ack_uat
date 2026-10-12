@@ -6,8 +6,8 @@
 |----------------------------|---------|------|--------------------------------|
 | `itesoft_sortant_ack_uat`  | ACK     | UAT  | `Move-ItesoftSortantAck.ps1`   |
 | `itesoft_sortant_ack_prod` | ACK     | PROD | `Move-ItesoftSortantAck.ps1`   |
-| `itesoft_sortant_uat`      | SORTANT | UAT  | script dédié (logique différente) |
-| `itesoft_sortant_prod`     | SORTANT | PROD | script dédié (logique différente) |
+| `itesoft_sortant_uat`      | SORTANT | UAT  | `Move-ItesoftSortant.ps1`      |
+| `itesoft_sortant_prod`     | SORTANT | PROD | `Move-ItesoftSortant.ps1`      |
 
 Les deux scripts sont différents ; ce qui les relie, c'est un **contrat de
 journalisation commun** (ci-dessous). Les alertes et le tableau de bord ne
