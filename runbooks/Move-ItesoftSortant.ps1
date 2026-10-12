@@ -18,8 +18,10 @@
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
 
-    Le nom doit compter exactement 5 segments séparés par "_" (aucun segment,
-    numéro de facture compris, ne contient de "_").
+    Le nom est lu en partant de la droite : les 4 derniers segments (SYS,
+    CompanyCode, LegalTaxContext, Format) ne contiennent pas de "_", tout ce
+    qui précède est le numéro de facture, qui peut en contenir.
+    Exemple : 400_PTX_0000076993_BSE_C1_FR_UBL.xml -> numéro 400_PTX_0000076993
 
     Les répertoires cibles manquants (y compris .../output/invoices) sont créés.
     À la création du sous-dossier, un fichier config.json y est déposé :
@@ -74,8 +76,8 @@ $RemoteBase  = "/root/outbound"
 $RemoteInput = "/root/outbound/azure_automation/input"
 
 # <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-# Exactement 5 segments sans "_".
-$FileNamePattern = '^(?<Numero>[^_]+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
+# Le numéro (.+) absorbe les "_" ; les 4 segments suivants n'en contiennent pas.
+$FileNamePattern = '^(?<Numero>.+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
 
 # Fichier déposé dans chaque sous-dossier créé.
 $ConfigFileName = "config.json"

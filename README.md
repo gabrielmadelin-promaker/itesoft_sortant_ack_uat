@@ -41,8 +41,11 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
 | VIG | TALENTIA_VIGNES |
 | MED | TALENTIA_MEDIA |
 
-- Le nom doit compter exactement 5 segments séparés par `_` (aucun segment,
-  numéro compris, ne contient de `_`). Extension et code insensibles à la casse.
+- Le nom est lu depuis la droite : les 4 derniers segments (`SYS`,
+  `CompanyCode`, `LegalTaxContext`, `Format`) ne contiennent pas de `_` ; tout
+  ce qui précède est le numéro de facture, qui peut en contenir
+  (ex. `400_PTX_0000076993_BSE_C1_FR_UBL.xml` → `400_PTX_0000076993.xml`).
+  Extension et code insensibles à la casse.
 - Le fichier est **renommé `<Numero>.xml`** dans le sous-dossier cible.
 - Les répertoires manquants (`.../output/invoices` et le sous-dossier
   `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés. À la création du
