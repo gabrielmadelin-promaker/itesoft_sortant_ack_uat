@@ -16,12 +16,14 @@
     <SYS> est un code à 3 lettres converti en nom de système par la table
     $SystemCodes (BSE -> TALENTIA_BSE...).
 
-    Le nom est lu en partant de la droite : le numéro de facture peut donc
-    contenir des "_" ; CompanyCode, LegalTaxContext et Format ne le peuvent pas.
+    Le nom doit compter exactement 5 segments séparés par "_" (aucun segment,
+    numéro de facture compris, ne contient de "_").
 
-    Un fichier en anomalie (nom non conforme, code système inconnu, répertoire
-    invoices absent, fichier cible déjà présent) reste dans input, est signalé
-    en erreur et sera retenté au passage suivant.
+    Les répertoires cibles manquants (y compris .../output/invoices) sont créés.
+
+    Un fichier en anomalie (nom non conforme, code système inconnu, fichier
+    cible déjà présent) reste dans input, est signalé en erreur et sera retenté
+    au passage suivant.
 
     Le même script sert aux runbooks itesoft_sortant_uat et
     itesoft_sortant_prod : seul le paramètre Environment change.
@@ -65,8 +67,8 @@ $RemoteBase  = "/root/outbound"
 $RemoteInput = "/root/outbound/azure_automation/input"
 
 # <Numero>_<SYS>_<CompanyCode>_<LegalTaxContext>_<Format>.xml
-# Le numéro (.+) absorbe les "_" éventuels ; les 4 autres segments n'en contiennent pas.
-$FileNamePattern = '^(?<Numero>.+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
+# Exactement 5 segments sans "_".
+$FileNamePattern = '^(?<Numero>[^_]+)_(?<Code>[^_]+)_(?<CompanyCode>[^_]+)_(?<LegalTaxContext>[^_]+)_(?<Format>[^_]+)\.xml$'
 
 # Seuls les fichiers correspondant à ce masque sont traités
 # (insensible à la casse). Les autres restent en place, sans erreur.
@@ -187,6 +189,30 @@ function Remove-RemoteFile
     )
 
     $Session.RemoveFiles($Session.EscapeFileMask($RemotePath)).Check()
+}
+
+function New-RemoteDirectory
+{
+    # Crée un répertoire distant et ses parents manquants (comme mkdir -p),
+    # sans jamais remonter au-dessus de $Root.
+    param(
+        [Parameter(Mandatory = $true)] $Session,
+        [Parameter(Mandatory = $true)] [string]$Root,
+        [Parameter(Mandatory = $true)] [string]$Path
+    )
+
+    $Current = $Root.TrimEnd("/")
+
+    foreach ($Segment in $Path.Substring($Current.Length).Trim("/").Split("/"))
+    {
+        $Current = "$Current/$Segment"
+
+        if (-not $Session.FileExists($Current))
+        {
+            $Session.CreateDirectory($Current)
+            Write-Log "Répertoire créé : $Current" "OK"
+        }
+    }
 }
 
 function Move-RemoteFile
@@ -436,18 +462,8 @@ try
 
             if (-not $KnownFolders.ContainsKey($TargetFolder))
             {
-                # Le répertoire invoices du système doit exister : on ne crée
-                # que le sous-dossier <CompanyCode>_<LegalTaxContext>_<Format>.
-                if (-not $Session.FileExists($InvoicesPath))
-                {
-                    throw "Répertoire invoices absent : $InvoicesPath"
-                }
-
-                if (-not $Session.FileExists($TargetFolder))
-                {
-                    $Session.CreateDirectory($TargetFolder)
-                    Write-Log "Répertoire créé : $TargetFolder" "OK"
-                }
+                # Crée .../<SYSTEME>/output/invoices/<sous-dossier> si besoin.
+                New-RemoteDirectory -Session $Session -Root $RemoteBase -Path $TargetFolder
 
                 $KnownFolders[$TargetFolder] = $true
             }

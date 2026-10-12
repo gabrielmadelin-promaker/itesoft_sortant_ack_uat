@@ -39,13 +39,12 @@ Transcodification `<SYS>` → `<SYSTEME>` (table `$SystemCodes` en tête du scri
 | VIG | TALENTIA_VIGNES |
 | MED | TALENTIA_MEDIA |
 
-- Le nom est lu depuis la droite : le numéro de facture peut contenir des `_`,
-  pas les trois derniers segments. Extension et code insensibles à la casse.
-- Le sous-dossier `<CompanyCode>_<LegalTaxContext>_<Format>` est créé s'il
-  n'existe pas ; le répertoire `.../output/invoices` du système doit exister.
+- Le nom doit compter exactement 5 segments séparés par `_` (aucun segment,
+  numéro compris, ne contient de `_`). Extension et code insensibles à la casse.
+- Les répertoires manquants (`.../output/invoices` et le sous-dossier
+  `<CompanyCode>_<LegalTaxContext>_<Format>`) sont créés.
 - Restent dans `input`, signalés en `[ERREUR]` et retentés au passage suivant :
-  nom non conforme, code système inconnu, répertoire invoices absent, fichier
-  cible déjà présent.
+  nom non conforme, code système inconnu, fichier cible déjà présent.
 - Les fichiers qui ne sont pas des `.xml` sont ignorés sans erreur.
 
 ## Prérequis

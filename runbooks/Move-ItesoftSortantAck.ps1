@@ -54,7 +54,6 @@ $Systems = @(
     "TALENTIA_BLUEUS",
     "TALENTIA_BSE",
     "TALENTIA_ODET",
-    "TALENTIA_POLYCEA",
     "TALENTIA_VIGNES",
     "TALENTIA_MEDIA"
 )
